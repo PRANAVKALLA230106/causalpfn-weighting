@@ -45,7 +45,7 @@ scripts/
 notebooks/kaggle_causalpfn.ipynb   Kaggle driver notebook (see docs/KAGGLE.md)
 results/full/           all full-scale outputs (h1_*.csv, h2_*.jsonl, h3.jsonl, ihdp/, figures/)
 results/pilot/          pilot-stage outputs
-paper/                  LaTeX source (ICLR 2027 style), figures, numbers.tex, paper.pdf
+paper/                  LaTeX source, figures, numbers.tex, paper.pdf
 ```
 
 ## Setup
