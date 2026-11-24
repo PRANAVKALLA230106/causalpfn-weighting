@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: "If you use this code or results, please cite the paper."
+title: "What Estimator Does CausalPFN Learn? An Exact Weighting View of a Causal Foundation Model"
+authors:
+  - family-names: Kalla
+    given-names: Pranav
+year: 2026
+license: MIT

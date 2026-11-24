@@ -1,0 +1,10 @@
+torch>=2.1
+numpy
+pandas
+scikit-learn
+joblib
+matplotlib
+huggingface_hub
+tabulate
+# CausalPFN itself (not on PyPI as used here):
+causalpfn @ git+https://github.com/vdblm/CausalPFN

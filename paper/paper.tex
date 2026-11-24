@@ -1,0 +1,203 @@
+\documentclass{article}
+\usepackage{iclr2027_conference,times}
+\iclrfinalcopy % camera-ready layout (no line numbers, author shown); running header blanked below
+\input{math_commands.tex}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=black!70!blue,citecolor=black!60!green,urlcolor=black!70!blue}
+\usepackage{url}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage[capitalize,noabbrev]{cleveref}
+\input{numbers.tex}
+
+\newtheorem{proposition}{Proposition}
+\newcommand{\DiM}{\mathrm{DiM}}
+\newcommand{\that}{\hat\tau}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\title{What Estimator Does CausalPFN Learn?\\An Exact Weighting View of\\a Causal Foundation Model}
+
+\author{Pranav Kalla}
+
+\begin{document}
+\maketitle
+\lhead{}\renewcommand{\headrulewidth}{0pt}
+
+\begin{abstract}
+Causal foundation models such as CausalPFN estimate treatment effects in a single forward pass, but it is unknown how they correct for confounding. We show that CausalPFN's per-arm outcome standardisation makes its average-treatment-effect estimate \emph{exactly} a weighting estimator, $\that = \DiM + \sum_i w^{\mathrm{net}}_i y_i$, and that its error equals the imbalance of these weights on the true outcome surfaces plus a noise term. Across \nDGPhone{} synthetic data-generating processes, IHDP, probes, LEACE erasure and coupled propensity swaps, we find three things. (i)~CausalPFN removes nearly all confounding bias in low-dimensional problems, but only \kHardPFN{} of it under dense, weak, nonlinear confounding, against \kHardGP{} for a Gaussian-process S-learner given the same preprocessing. The gap persists when overlap is bounded. (ii)~The implied weights remove \linRemoved{} of the linear but only \nonlinRemoved{} of the nonlinear confounding. \nonlinShareLeft{} of the remaining bias is nonlinear, and its size predicts the shortfall ($r={}$\corrKappaNonlin). (iii)~Propensity information is computed in the context-row representations from the first layer and is partly used: erasing it moves the estimate by \eraseOne{}--\eraseAll{} of the correction. Yet when only the propensity changes, CausalPFN responds like the GP outcome model, not like inverse-propensity weighting. CausalPFN thus behaves as a regularised outcome smoother whose balance is essentially linear. This locates the failure that recent debiasing methods target.
+\end{abstract}
+
+\section{Introduction}
+Prior-data fitted networks (PFNs) amortise Bayesian inference over a synthetic prior \citep{muller2022pfn,hollmann2023tabpfn}. Causal variants, including CausalPFN \citep{balazadeh2025causalpfn}, Do-PFN \citep{robertson2025dopfn} and CausalFM \citep{ma2025causalfm}, estimate conditional and average treatment effects from a table in one forward pass \citep{stith2026cfmsurvey}. Their behaviour is increasingly well mapped. They retain prior-driven bias that can prevent frequentist consistency \citep{melnychuk2026frequentist}, a cousin of regularisation-induced confounding \citep{hahn2018regularization}, and they degrade with post-treatment covariates \citep{ham2026posttreatment}. Several works propose fixes that change the training target or add a correction step \citep{melnychuk2026frequentist,zhang2026fluctuate}. Internal analyses exist only for tabular \emph{prediction} models \citep{bilos2026mechanistic,nguyen2026standardization,gupta2026tabpfnheads,gong2026depth}. No one has asked where, inside a causal foundation model, the confounding correction is computed or lost.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+\item \textbf{An exact weighting representation} of CausalPFN's ATE (\cref{prop:weights}), from per-arm $z$-scoring and Euler's theorem. Its \emph{error identity} attributes estimation error to the imbalance of the implied weights on the true outcome surfaces, which we split into linear and nonlinear parts.
+\item \textbf{How much correction?} Near-complete in low-dimensional sparse problems. Under dense nonlinear confounding, the correction falls with dimension and rises with $n$, and stays below a GP S-learner with identical preprocessing, also when overlap is bounded (\cref{sec:h1}).
+\item \textbf{What is balanced?} The weights balance the linear span of $X$ almost as well as oracle inverse-propensity weights do, and its nonlinear complement far worse. The nonlinear residual predicts the shortfall (\cref{sec:h2}). On IHDP, confounding is almost entirely linear, so this failure mode never shows (\cref{sec:ihdp}).
+\item \textbf{Where is propensity?} Probes with shuffled-treatment and random-network controls, LEACE erasure \citep{belrose2023leace}, attention analysis and coupled propensity swaps show that propensity is computed and partly used, but that CausalPFN responds to propensity changes like an outcome model (\cref{sec:h3}).
+\end{enumerate}
+Code, all result files and the scripts that regenerate every number and figure are released with this paper.
+
+\section{Setup}\label{sec:setup}
+\paragraph{Estimand and the share of bias removed.}
+We observe $(x_i, t_i, y_i)_{i=1}^n$ with $t_i\in\{0,1\}$, $n_1$ treated and $n_0$ controls, and outcome surfaces $\mu_t(x)$. The sample effect is $\psi = n^{-1}\sum_i[\mu_1(x_i)-\mu_0(x_i)]$, and $\DiM = \bar y_1 - \bar y_0$. For a data-generating process (DGP) $d$ we define the share of confounding bias removed by an estimator $\that$ as
+\begin{equation}
+\kappa_d = \frac{\mathbb{E}[\that - \DiM]}{\mathbb{E}[\psi - \DiM]},
+\end{equation}
+with expectations over replications that redraw $(X, T, \varepsilon)$. $\kappa=0$ is DiM; $\kappa=1$ for any consistent estimator. We use only DGPs whose DiM bias exceeds three Monte-Carlo standard errors. We report $|\text{bias}|$-weighted pooled $\kappa$ with DGP-clustered bootstrap 95\% intervals, and compare estimators \emph{paired} on identical draws.
+
+\paragraph{CausalPFN's computation.}
+CausalPFN standardises outcomes \emph{per arm}, $z_i = (y_i - \bar y_{t_i})/s_{t_i}$, with population standard deviations. A transformer reads context tokens $(x_i, t_i, z_i)$ and outputs standardised conditional expected potential outcomes $m_t(x)$. These are mapped back as $\hat\mu_t(x) = \bar y_t + s_t\,m_t(x)$. The S-mode ATE averages $\hat\mu_1-\hat\mu_0$ over the training rows. RA mode replaces the factual prediction by the observed outcome. We also use a cross-fitted \emph{held-out} mode, where queries never duplicate a context row.
+
+\begin{proposition}[Exact weighting and error identity]\label{prop:weights}
+For S, RA and cross-fitted modes:
+(a) $\that(c\,\mathbf y) = c\,\that(\mathbf y)$ for $c>0$, and $\that(\mathbf y + a\mathbf 1_{T} + b\mathbf 1_{C}) = \that(\mathbf y) + a - b$.
+(b) Hence $\that = \sum_i w_i y_i$ with $w = \nabla_{\mathbf y}\that$, where $\sum_{i\in T} w_i = 1$ and $\sum_{i\in C} w_i = -1$. Writing $w = w^{\DiM} + w^{\mathrm{net}}$ with $w^{\DiM}_i = \pm 1/n_{t_i}$, $w^{\mathrm{net}}$ sums to zero within each arm, and $|\that - \DiM| \le v_{\max}(s_1+s_0)$ with $v_{\max}=10$ the output-grid bound.
+(c) With $y_i = \mu_{t_i}(x_i) + \varepsilon_i$ and control weights $v_i = -w_i$,
+\begin{equation}\label{eq:error}
+\that - \psi = \Big[\textstyle\sum_{i\in T} w_i\mu_1(x_i) - \bar\mu_1\Big] - \Big[\sum_{i\in C} v_i\mu_0(x_i) - \bar\mu_0\Big] + \sum_i w_i\varepsilon_i ,
+\end{equation}
+where $\bar\mu_t = n^{-1}\sum_i \mu_t(x_i)$.
+\end{proposition}
+\begin{proof}[Proof sketch]
+(a) $z$ is invariant to positive scaling and to arm-wise shifts. $\bar y_t$ and $s_t$ transform equivariantly. (b) Euler's theorem for degree-1 homogeneous functions gives $\that = \mathbf y^\top\nabla\that$ \citep[cf.][]{hesse2021fast}. Differentiating the shift identity in $a$ and $b$ gives the arm sums. The bound holds because $m_t \in [-v_{\max}, v_{\max}]$. (c) Substitute $y_i$ into $\that=\sum w_i y_i$ and use $\psi = \bar\mu_1-\bar\mu_0$ and the arm sums. Full proof in \cref{app:proof}.
+\end{proof}
+The weights depend on $\mathbf y$, so they describe CausalPFN \emph{locally}, consistent with joint label processing \citep{nguyen2026standardization}. \Cref{eq:error} is nonetheless exact at the observed data. All identities hold numerically to $\le 1.1\times10^{-15}$ in float64 across 570 decompositions, and our direct path reproduces the public estimator to $<10^{-6}$ on CPU and GPU (\cref{app:impl}). Splitting $\mu_t$ into its best linear fit $L_t$ and remainder $N_t$ splits the bias term in \cref{eq:error} into a \emph{linear} and a \emph{nonlinear} imbalance. The same split applies to any weighting estimator, including DiM, OLS, oracle Hájek and the GP S-learner, whose exact weights we also compute.
+
+\section{Experimental design}\label{sec:design}
+\paragraph{DGP families} (\cref{app:dgp}), sized by a pilot power analysis:
+\begin{itemize}
+\item \emph{Easy} (120 DGPs): low-dimensional ($p\in\{3,5,8\}$) sparse surfaces. In the RIC variant, propensity is a function of the prognostic score \citep{hahn2018regularization}; in the overlap variant, propensity is linear with heterogeneous effects.
+\item \emph{Hard} (180 DGPs): a grid over $p\in\{5,\dots,50\}$, confounding strength $1$--$6$ and $n\in\{200,500,1000\}$ with dense, weak, nonlinear confounding. Every covariate enters $\mu_0$ with coefficient $\propto p^{-1/2}$, and $e(x)=\sigma(\text{strength}\cdot\text{standardised }\mu_0)$.
+\item \emph{Clip} (90 DGPs): the same surfaces with $e\in[0.1,0.9]$, a positivity control.
+\item \emph{Prop-NL} (40 DGPs, for H3): propensity nonlinear in two coordinates and only partly prognostic, so propensity information is separable from outcome information.
+\item \emph{IHDP}: the real covariates and treatment of the IHDP study, with Hill's linear (A) and nonlinear (B) surfaces \citep{hill2011bayesian,louizos2017cevae}.
+\end{itemize}
+Every DGP has \nReps{} replications. Following the prior description of \citet{balazadeh2025causalpfn}, DGPs whose propensity is aligned with the prognostic score are labelled out-of-prior.
+
+\paragraph{Baselines,} all run on identical draws: DiM, OLS S/T-learners, IPW, Hájek, five-fold cross-fitted AIPW, $k$NN matching, and a GP S-learner on per-arm standardised outcomes. The GP shares CausalPFN's preprocessing and isolates ``regularised smoother'' behaviour. All runs use the public checkpoint (18.8M parameters).
+
+\section{How much of the correction does CausalPFN supply?}\label{sec:h1}
+\paragraph{Easy DGPs.} CausalPFN is nearly complete: $\kappa=\kEasyRic$~\kEasyRicCI{} on RIC and \kEasyOv~\kEasyOvCI{} on overlap DGPs, both inside an equivalence band of $[0.9, 1.1]$. It is lower on the out-of-prior RIC family than on the in-prior overlap family (\kOutPrior{} vs \kInPrior), and \dEasyGPric{} behind the GP on RIC.
+
+\paragraph{Hard DGPs.} CausalPFN removes \kHardPFN~\kHardPFNCI{} of the bias (\cref{fig:kappa}), against \kHardGP{} for the GP on the same draws, a paired gap of \dPFNGP~\dPFNGPCI. It matches IPW (\dPFNIPWhard~\dPFNIPWhardCI) and AIPW (\dPFNAIPW~\dPFNAIPWCI), which are themselves limited by propensities near 0 and 1.
+
+\paragraph{Bounded overlap.} With overlap bounded to $[0.1,0.9]$, CausalPFN improves in \clipHigher{} DGPs but still reaches only \kClipPFN~\kClipPFNCI{}. It trails the GP (\kClipGP; paired \dClipPFNGP~\dClipPFNGPCI) and IPW (\kClipIPW; paired \dClipPFNIPW~\dClipPFNIPWCI).
+
+\paragraph{Drivers.} Regressing $\kappa_d$ on design factors under bounded overlap gives effects of dimension (\regP{} per covariate) and sample size (\regLogN{} per $\log n$). The confounding-strength effect shrinks from \trendHard{} to \trendClip{} once overlap is bounded, so it is mostly a positivity effect. Across DGPs, $\kappa_d$ correlates \corrEVChard{} (hard) and \corrEVCclip{} (clip) with how much of the explainable held-out outcome variance CausalPFN captures. The correction is thus limited by how well the in-context outcome model fits. Held-out queries, which halve the context, lower $\kappa$ to \kHardHO{} (paired difference \dHOS).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig1_kappa_vs_p.pdf}
+\caption{Share of confounding bias removed ($\kappa$) on hard DGPs, by dimension and sample size (medians over DGPs, interquartile bands; 20 replications each). Dashed: CausalPFN on the same surfaces with overlap bounded to $[0.1,0.9]$.}
+\label{fig:kappa}
+\end{figure}
+
+\section{What do the implied weights balance?}\label{sec:h2}
+\Cref{eq:error} tells us which part of the outcome surface the weights fail to balance (\cref{fig:balance}). On hard DGPs, CausalPFN's exact weights remove \linRemoved{} of DiM's linear confounding but only \nonlinRemoved{} of its nonlinear confounding. At $p=50$, and at $p=30$ with $n\le 500$, they \emph{increase} the nonlinear imbalance. \nonlinShareLeft{} of CausalPFN's remaining bias is nonlinear, and $\kappa_d$ correlates \corrKappaNonlin{} with the residual nonlinear imbalance, against \corrKappaLin{} with the linear one. The reference estimators bracket this behaviour:
+\begin{itemize}
+\item OLS imputation balances the linear span exactly and worsens the nonlinear part (\olsNonlin), as regression-imputation theory predicts \citep{chattopadhyay2021implied,han2026imputation}.
+\item Oracle Hájek weights balance both parts (\hajLin{} / \hajNonlin).
+\item The GP sits between OLS and Hájek (\gpLin{} / \gpNonlin{}).
+\end{itemize}
+CausalPFN lies between OLS and the GP. Its weights are closest to the GP's: their within-arm cosine is \cosPFNGP, against \cosPFNOLS{} for OLS and \cosPFNHaj{} for oracle Hájek, and CausalPFN's own cosine under a fresh noise draw is \cosPFNFresh{} (\cref{app:extra}). \negWeights{} of its weights are negative, as for regression weights \citep{knaus2024weighted}. Oracle-free Hájek balances a rich covariate dictionary better than CausalPFN in \hajekBetter{} of datasets.
+
+Two qualifications apply. First, the weights are local: the label-dependent chain-rule term is \labelDep{} of their norm, and the fresh-noise cosine ranges over \cosFresh. Second, held-out and in-context weights differ (cosine \cosHOin), so the duplicate own-row queries of S mode matter, whereas S and RA weights nearly coincide (\cosSRA).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\linewidth]{figures/fig2_linear_vs_nonlinear_balance.pdf}
+\caption{Share of DiM's imbalance removed on the linear and nonlinear parts of $\mu$ (\cref{eq:error}), for exact weights of each estimator, on hard DGPs (360 decompositions; averaged over $n$).}
+\label{fig:balance}
+\end{figure}
+
+\subsection{A real-covariate check: IHDP}\label{sec:ihdp}
+On IHDP's real covariates and treatment assignment (\cref{fig:ihdp}), CausalPFN removes most of the bias under both of Hill's surfaces: $\kappa=\ihdpA$ (linear surface A) and \ihdpB{} (nonlinear surface B), against \ihdpGPA{} and \ihdpGPB{} for the GP. \Cref{eq:error} explains why. Even under surface B, only \ihdpNonlinShare{} of DiM's imbalance falls on the nonlinear part of $\mu_0$, because the real assignment is aligned with the linear part. IHDP therefore never exercises the failure mode of \cref{fig:balance}, which suggests that standard semi-synthetic benchmarks can hide it. Where IHDP's confounding is linear, CausalPFN still leaves more linear imbalance than the GP (mean $|\cdot|$ \ihdpLinLeftPFN{} vs \ihdpLinLeftGP{} on surface A).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.52\linewidth]{figures/fig7_ihdp.pdf}
+\caption{IHDP (real covariates and assignment; 40 surfaces per setting, 3 noise draws each): pooled $\kappa$ over surfaces with detectable DiM bias (32/40 for A, 20/40 for B).}
+\label{fig:ihdp}
+\end{figure}
+
+\section{Where is propensity information, and is it used?}\label{sec:h3}
+\paragraph{Probes.} We probe each layer's context-row stream for $e_\perp$, the logit propensity residualised on $(x, \mu_0(x), t)$, on \nHthree{} prop-NL DGPs. At the layer $l^*$ fixed on three pilot DGPs, $e_\perp$ is decodable with $R^2=\probeReal$. That exceeds a cubic polynomial of $x$ (\probeRawx), a random-init network (\probeRand) and the same network with $t$ shuffled across rows (\probeShuf). The shuffle drop (\shufDrop) appears for $e_\perp$ but not for a matched nuisance concept (\cref{fig:probes}, left), so CausalPFN computes propensity from the $t$--$x$ association.
+
+\paragraph{Attention.} The attention mass that query rows place on treated context rows also tracks $\mathrm{logit}\,e$ beyond a quadratic in $x$ (mean max-head partial $|r|$ \attnReal, against \attnShuf{} with $t$ shuffled and \attnRand{} for a random network), in \attnLayers{} layers (\cref{app:extra}).
+
+\paragraph{Erasure.} Decodability is not use \citep{belinkov2022probing,elazar2021amnesic}. LEACE erasure of $e_\perp$ moves $\that$ by \eraseOne{} of the correction at $l^*$ (90\% upper bound \eraseOneUB) and by \eraseAll{} (\eraseAllUB) when erased at every layer, against \eraseNuis{} for the nuisance concept and \eraseRand{} for random directions (\cref{fig:probes}, right). This exceeds our pre-registered 10\% margin, so the hypothesis that propensity is known but unused is \emph{falsified}: propensity carries a real, if minor, share of the correction.
+
+\paragraph{Coupled propensity swaps.} To see \emph{how} it is used, we change only the propensity strength while holding $X$, $U$, $\varepsilon$ and the outcome surfaces fixed, so $\Delta\psi=0$. CausalPFN's change in estimate is predicted by the GP outcome model's change (coefficient \swapGP~\swapGPCI) and not by IPW's (\swapIPW~\swapIPWCI). Its mean $|\Delta\that|$ (\swapAbsPFN) lies between the GP's (\swapAbsGP) and IPW's (\swapAbsIPW), and grows to \swapAbsErased{} when $e_\perp$ is erased. Propensity information thus stabilises an estimate whose response to the assignment mechanism is that of an outcome model.
+
+\begin{figure}[t]
+\centering
+\begin{subfigure}{0.49\linewidth}\includegraphics[width=\linewidth]{figures/fig4_propensity_probes.pdf}\end{subfigure}\hfill
+\begin{subfigure}{0.49\linewidth}\includegraphics[width=\linewidth]{figures/fig5_erasure.pdf}\end{subfigure}
+\caption{Left: probe $R^2$ for propensity-specific information $e_\perp$ by layer, with controls (\nHthree{} DGPs). Right: change in $\that$ after LEACE erasure, relative to the correction (bootstrap 95\% intervals; dotted: pre-registered 10\% margin).}
+\label{fig:probes}
+\end{figure}
+
+\section{Related work}
+\textbf{Causal foundation models}: \citet{balazadeh2025causalpfn,robertson2025dopfn,ma2025causalfm,stith2026cfmsurvey}. CInA links attention to covariate balancing \citep{zhang2023cina}. Their shrinkage and its fixes are studied in \citet{melnychuk2026frequentist,zhang2026fluctuate,ham2026posttreatment}. \textbf{Interpretability of tabular PFNs}: \citet{bilos2026mechanistic,gupta2026tabpfnheads,gong2026depth,shaheen2026generalization}. \citet{nguyen2026standardization} certify joint label processing and caution against derivatives taken after standardisation; our derivatives are taken \emph{before} standardisation, through it. \textbf{Estimators as weights}: \citet{chattopadhyay2021implied,knaus2024weighted,han2026imputation}. \textbf{Probing and erasure}: \citet{belinkov2022probing,elazar2021amnesic,belrose2023leace}.
+
+\section{Discussion and limitations}
+CausalPFN corrects for confounding as a regularised outcome smoother. Its implied weights balance the linear span of $X$ about as well as oracle inverse-propensity weights do, and nonlinear functions much worse. It computes propensity and uses it for a minor share of the correction, but its response to the assignment mechanism is that of an outcome model. This explains why its shortfall grows with dimension, shrinks with $n$ and tracks held-out fit. It also locates the failure that one-step corrections target \citep{melnychuk2026frequentist}: nonlinear imbalance. \Cref{eq:error} offers a practical diagnostic on simulated surrogates of one's data. The IHDP result cautions that standard benchmarks with near-linear confounding can hide the problem. Limitations: mostly synthetic DGPs (IHDP adds real covariates but only mild, near-linear confounding); one model; weights that are exact but local; and linear erasure, which bounds but does not exhaust propensity use.
+
+\bibliography{refs}
+\bibliographystyle{iclr2027_conference}
+
+\appendix
+\section{Proof of \cref{prop:weights}}\label{app:proof}
+Let $\mathcal T, \mathcal C$ be the arms. For $c>0$, $\bar y_t(c\mathbf y) = c\bar y_t$, $s_t(c\mathbf y)=cs_t$ and $z(c\mathbf y)=z(\mathbf y)$. The network sees only $(x,t,z)$, so $m_t$ is unchanged and $\hat\mu_t(x; c\mathbf y) = c\hat\mu_t(x;\mathbf y)$. In RA mode, observed outcomes also scale by $c$. Hence $\that(c\mathbf y)=c\that(\mathbf y)$. (CausalPFN adds $10^{-20}$ to $s_t$; the induced deviation is below float64 resolution for all our data.) For the shift, $z$ is unchanged, $\bar y_1 \mapsto \bar y_1 + a$ and $\bar y_0\mapsto \bar y_0 + b$. Every $\hat\mu_1$ and every observed treated outcome moves by $a$, and every control quantity by $b$, so $\that$ moves by $a-b$. Euler's theorem for differentiable degree-1 homogeneous functions gives $\that = \sum_i y_i\,\partial\that/\partial y_i$. Differentiating $\that(\mathbf y + a\mathbf 1_{\mathcal T}) = \that(\mathbf y) + a$ in $a$ gives $\sum_{i\in\mathcal T}w_i = 1$; similarly $\sum_{i\in\mathcal C} w_i=-1$. For (c), $\that - \psi = \sum_{\mathcal T}w_i\mu_1(x_i) + \sum_{\mathcal C}w_i\mu_0(x_i) + \sum_i w_i\varepsilon_i - \bar\mu_1 + \bar\mu_0$. Rearranging with $v_i = -w_i$ on $\mathcal C$ gives \cref{eq:error}. In cross-fitted mode, each half-estimate is homogeneous in its own context outcomes, and the same argument applies to their average. \qed
+
+\section{Implementation details}\label{app:impl}
+\begin{itemize}
+\item We call the network directly. With each arm at most 1{,}024 rows, CausalPFN's retrieval keeps every row, and the direct ATE matches \texttt{ATEEstimator.estimate\_ate} to $9\times10^{-8}$ (S) and $1.8\times10^{-7}$ (RA).
+\item Exact decompositions run in float64. CausalPFN's RMSNorm casts to float32, which we patch to preserve dtype; this changes float32 predictions by $<10^{-6}$. Per-layer activation checkpointing gives bit-identical gradients.
+\item The label-free/label-dependent split of $w^{\mathrm{net}}$ follows from the chain rule through $z$-scoring (population SD): with $G_k = \partial(s_1M_1 - s_0M_0)/\partial z_k$ at fixed $s$, we have $w^{\mathrm{net}}_j = (G_j - \bar G_a)/s_a + z_j(\sigma_a s_a M_a - \sum_{k\in a}G_kz_k)/(n_as_a)$ for $j$ in arm $a$. It holds to $10^{-17}$.
+\end{itemize}
+Full-scale runs used a Tesla T4 (PyTorch 2.11). On the same dataset, GPU and CPU agree to $2.4\times10^{-7}$ for $\that$ in float32 and to $2.8\times10^{-16}$ for the float64 weights. Six randomly chosen Kaggle rows recomputed on CPU agree to $\le 4.5\times10^{-7}$ for CausalPFN and exactly for the baselines.
+
+\section{DGPs, prior labels and power analysis}\label{app:dgp}
+All families draw $X\sim\mathcal N(0, I_p)$ afresh in every replication, set $T\sim\mathrm{Bernoulli}(e(X))$ with $e$ clipped to $[c, 1-c]$, and $Y = \mu_T(X) + \sigma\varepsilon$ with $\varepsilon\sim\mathcal N(0,1)$. Functional parameters are fixed per DGP by its seed.
+\begin{itemize}
+\item \textbf{Easy-RIC} ($p\in\{3,5,8\}$, $n=500$, $c=0.01$): $\mu_0(x) = \beta^\top x + a_1\sin(1.5x_1) + a_2(x_2^2-1) + a_3x_1x_3$, with $\beta$ 80\% dense; $\mu_1 = \mu_0 + \tau_0$, $|\tau_0|\le 0.3$; $e(x) = \sigma(s\cdot \tilde\mu_0(x))$, where $\tilde\mu_0$ is $\mu_0$ standardised over the population and $s\sim U(0.5,3)$.
+\item \textbf{Easy-overlap}: same $\mu_0$; $\tau(x) = \tau_0 + \gamma_\tau^\top x$; $e(x) = \sigma(s\,\gamma^\top x)$ with $\gamma$ a unit vector on 1--3 coordinates and $s\sim U(1,4)$.
+\item \textbf{Hard} (grid $p\in\{5,10,20,30,50\}$, $s\in\{1,\dots,6\}$, $n\in\{200,500,1000\}$, two seeds): $\mu_0(x) = \beta^\top x + \sum_j[b_j\sin(1.5x_j) + d_j(x_j^2-1)]$ with $\beta_j\sim\mathcal N(0,1/p)$ and $b_j, d_j\sim\mathcal N(0, 0.36/p)$, so confounding is dense and weak; $e = \sigma(s\,\tilde\mu_0)$; $\sigma\sim U(0.3, 0.7)$.
+\item \textbf{Clip}: hard surfaces and seeds with $c=0.1$.
+\item \textbf{Prop-NL} ($p=6$, $n=500$): $h(x) = \sin(2x_1) + 0.7(x_2^2-1) + 0.5x_1x_2$; $e=\sigma(s\,h)$; $\mu_0 = \beta^\top x + \kappa_h h(x) + \sum_{j\ge 3}[\dots]$ with $|\kappa_h|\in[0.4,0.7]$, so $\mathrm{logit}\,e$ is only partly explained by $(x,\mu_0)$ ($R^2$ 0.27--0.57).
+\end{itemize}
+\paragraph{Prior labels.} Following App.~D.1 of \citet{balazadeh2025causalpfn}, a DGP is \emph{in-prior by mechanism} if its propensity logit is linear in $x$ and independent of the outcome surfaces, its noise variance is at most $\mathrm{Var}(\mu_t)$, $n\le 2048$ and $p\le 99$. The prior draws propensity independently of the outcome columns, so families with $e$ aligned to the prognostic score (RIC, hard, clip) are out-of-prior. As a data-driven proxy we report EVC, CausalPFN's held-out factual $R^2$ as a fraction of the oracle's.
+\paragraph{Power analysis.} In the pilot, the between-DGP standard deviation of $\kappa_d$ ($\approx$0.18) dominates the within-DGP sampling error ($\approx$0.02 at $R=10$). We therefore scale the number of DGPs, not replications: 390 DGPs $\times$ $R=20$ gives a projected 95\% half-width of $\approx$0.03 on pooled $\kappa$ and $\approx$0.01 on the paired CausalPFN$-$GP difference.
+
+\section{Additional results}\label{app:extra}
+\begin{figure}[h]
+\centering
+\begin{subfigure}{0.45\linewidth}\includegraphics[width=\linewidth]{figures/fig3_weight_similarity.pdf}\end{subfigure}\hfill
+\begin{subfigure}{0.5\linewidth}\includegraphics[width=\linewidth]{figures/fig6_attention_propensity.pdf}\end{subfigure}
+\caption{Left: mean within-arm cosine between the de-meaned net weights of each pair of estimators (hard DGPs); noise floors are the same estimator after a fresh noise draw. Right: by layer, the maximum over heads of the partial correlation between the attention mass on treated context rows and logit $e$, given a quadratic in $x$, with shuffled-$t$ and random-network controls.}
+\end{figure}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{lccc}
+\toprule
+Estimator & Easy RIC & Hard & Clip \\
+\midrule
+CausalPFN (S) & \kEasyRic & \kHardPFN & \kClipPFN \\
+GP S-learner & 0.984 & \kHardGPfull & \kClipGP \\
+AIPW (5-fold) & 0.948 & \kHardAIPW & \kClipAIPW \\
+IPW & 0.877 & \kHardIPW & \kClipIPW \\
+OLS S-learner & 0.698 & \kHardOLS & 0.487 \\
+CausalPFN (held-out) & 0.917 & \kHardHO & 0.575 \\
+\bottomrule
+\end{tabular}
+\caption{Pooled $\kappa$ by suite (20 replications per DGP; all DGPs eligible except 2 in the easy overlap family).}
+\end{table}
+
+\end{document}

@@ -1,0 +1,67 @@
+% Every reported number lives here, generated from results/full by scripts/make_numbers.py
+% (plus the hand-computed full-scale additions at the end).  \prov{} would mark provisional values; none remain.
+\newif\ifprov \provtrue
+\newcommand{\prov}[1]{\ifprov\textcolor{blue}{#1}\else#1\fi}
+
+% ---- scale of the study
+\newcommand{\nDGPhone}{390}         % H1 DGPs (pilot: 40 easy + 36 hard); full: 390
+\newcommand{\nDGPhard}{180}
+\newcommand{\nReps}{20}
+
+% ---- H1: easy suite
+\newcommand{\kEasyRic}{0.948}      \newcommand{\kEasyRicCI}{[0.938, 0.955]}
+\newcommand{\kEasyOv}{0.993}       \newcommand{\kEasyOvCI}{[0.983, 1.002]}
+% ---- H1: hard suite
+\newcommand{\kHardPFN}{0.604}      \newcommand{\kHardPFNCI}{[0.574, 0.635]}
+\newcommand{\kHardGP}{0.740}       \newcommand{\kHardGPCI}{[0.708, 0.771]}
+\newcommand{\kHardAIPW}{0.616}     \newcommand{\kHardIPW}{0.603}
+\newcommand{\kHardOLS}{0.439}
+\newcommand{\dPFNGP}{$-0.135$}     \newcommand{\dPFNGPCI}{[$-0.145$, $-0.125$]}
+\newcommand{\dPFNAIPW}{$-0.012$}   \newcommand{\dPFNAIPWCI}{[$-0.025$, $+0.002$]}
+% ---- H1: positivity control
+\newcommand{\kClipPFN}{0.675}      \newcommand{\kClipPFNCI}{[0.635, 0.715]}
+\newcommand{\kClipIPW}{0.852}
+\newcommand{\dClipPFNIPW}{$-0.177$} \newcommand{\dClipPFNIPWCI}{[$-0.250$, $-0.106$]}
+\newcommand{\trendHard}{$-0.033$}  \newcommand{\trendClip}{$-0.013$}
+\newcommand{\regP}{$-0.010$} 
+\newcommand{\regLogN}{$+0.127$}
+% ---- H2
+\newcommand{\linRemoved}{89\%}     \newcommand{\nonlinRemoved}{32\%}
+\newcommand{\nonlinShareLeft}{79\%}
+\newcommand{\corrKappaNonlin}{$-0.905$}
+\newcommand{\hajekBetter}{61\%}    \newcommand{\negWeights}{20\%}
+\newcommand{\corrInvE}{n/a}
+\newcommand{\cosFresh}{0.47--0.81} \newcommand{\labelDep}{7.2\%}
+\newcommand{\cosHOin}{0.54} \newcommand{\cosSRA}{0.98}
+% ---- H3
+\newcommand{\nHthree}{35}
+\newcommand{\probeReal}{0.73}  \newcommand{\probeShuf}{0.55}
+\newcommand{\probeRand}{0.61}  \newcommand{\probeRawx}{0.38}
+\newcommand{\shufDrop}{0.18}
+\newcommand{\eraseOne}{0.104}  \newcommand{\eraseOneUB}{0.132}
+\newcommand{\eraseAll}{0.239}  \newcommand{\eraseAllUB}{0.287}
+\newcommand{\eraseNuis}{0.051} \newcommand{\eraseRand}{0.007}
+% ---- IHDP (filled after run_ihdp.py)
+\newcommand{\ihdpA}{0.944} \newcommand{\ihdpB}{1.008}
+% ---- IHDP balance attribution (run_ihdp.py, 15 surfaces per setting)
+\newcommand{\ihdpGPA}{0.983} \newcommand{\ihdpGPB}{0.961}
+\newcommand{\ihdpNonlinShare}{5\%}
+\newcommand{\ihdpLinLeftPFN}{0.089} \newcommand{\ihdpLinLeftGP}{0.032}
+% ---- full-scale additions (Kaggle run, 22 Nov 2026)
+\newcommand{\kHardGPfull}{0.740} \newcommand{\kHardHO}{0.502} \newcommand{\dHOS}{$-0.102$}
+\newcommand{\kClipGP}{0.784} \newcommand{\dClipPFNGP}{$-0.108$} \newcommand{\dClipPFNGPCI}{[$-0.122$, $-0.095$]}
+\newcommand{\kClipAIPW}{0.722}
+\newcommand{\dPFNIPWhard}{$+0.001$} \newcommand{\dPFNIPWhardCI}{[$-0.018$, $+0.020$]}
+\newcommand{\clipHigher}{88/90}
+\newcommand{\corrEVChard}{0.87} \newcommand{\corrEVCclip}{0.95}
+\newcommand{\kInPrior}{0.993} \newcommand{\kOutPrior}{0.948}
+\newcommand{\dEasyGPric}{$-0.036$}
+\newcommand{\gpLin}{87\%} \newcommand{\gpNonlin}{51\%}
+\newcommand{\olsNonlin}{$-48\%$} \newcommand{\hajLin}{91\%} \newcommand{\hajNonlin}{95\%}
+\newcommand{\corrKappaLin}{$-0.59$}
+\newcommand{\cosPFNGP}{0.55} \newcommand{\cosPFNOLS}{0.46} \newcommand{\cosPFNHaj}{0.36}
+\newcommand{\cosGPFresh}{0.87} \newcommand{\cosPFNFresh}{0.66}
+\newcommand{\attnReal}{0.48} \newcommand{\attnShuf}{0.31} \newcommand{\attnRand}{0.22} \newcommand{\attnLayers}{12 of 20}
+\newcommand{\swapGP}{1.18} \newcommand{\swapGPCI}{[0.73, 1.99]} \newcommand{\swapIPW}{0.05} \newcommand{\swapIPWCI}{[$-0.02$, 0.11]}
+\newcommand{\swapAbsPFN}{0.082} \newcommand{\swapAbsGP}{0.034} \newcommand{\swapAbsIPW}{0.275} \newcommand{\swapAbsErased}{0.105}
+\newcommand{\eraseLogit}{0.77}

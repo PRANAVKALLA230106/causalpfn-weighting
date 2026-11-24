@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+checkpoints/
+data/
+results/run*/
+cfm-bundle.zip
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.fls
+paper/*.fdb_latexmk
