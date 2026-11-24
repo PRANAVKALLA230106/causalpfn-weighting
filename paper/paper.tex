@@ -20,14 +20,14 @@
 
 \title{What Estimator Does CausalPFN Learn?\\An Exact Weighting View of\\a Causal Foundation Model}
 
-\author{Pranav Kalla}
+\author{Pranav Kalla\\ PES University, Bengaluru, India}
 
 \begin{document}
 \maketitle
-\lhead{}\renewcommand{\headrulewidth}{0pt}
+\lhead{Draft, November 2026}\renewcommand{\headrulewidth}{0pt}
 
 \begin{abstract}
-Causal foundation models such as CausalPFN estimate treatment effects in a single forward pass, but it is unknown how they correct for confounding. We show that CausalPFN's per-arm outcome standardisation makes its average-treatment-effect estimate \emph{exactly} a weighting estimator, $\that = \DiM + \sum_i w^{\mathrm{net}}_i y_i$, and that its error equals the imbalance of these weights on the true outcome surfaces plus a noise term. Across \nDGPhone{} synthetic data-generating processes, IHDP, probes, LEACE erasure and coupled propensity swaps, we find three things. (i)~CausalPFN removes nearly all confounding bias in low-dimensional problems, but only \kHardPFN{} of it under dense, weak, nonlinear confounding, against \kHardGP{} for a Gaussian-process S-learner given the same preprocessing. The gap persists when overlap is bounded. (ii)~The implied weights remove \linRemoved{} of the linear but only \nonlinRemoved{} of the nonlinear confounding. \nonlinShareLeft{} of the remaining bias is nonlinear, and its size predicts the shortfall ($r={}$\corrKappaNonlin). (iii)~Propensity information is computed in the context-row representations from the first layer and is partly used: erasing it moves the estimate by \eraseOne{}--\eraseAll{} of the correction. Yet when only the propensity changes, CausalPFN responds like the GP outcome model, not like inverse-propensity weighting. CausalPFN thus behaves as a regularised outcome smoother whose balance is essentially linear. This locates the failure that recent debiasing methods target. Code and results: \url{https://github.com/PRANAVKALLA230106/causalpfn-weighting}.
+Causal foundation models such as CausalPFN estimate treatment effects in a single forward pass, but it is unknown how they correct for confounding. We show that CausalPFN's per-arm outcome standardisation makes its average-treatment-effect estimate \emph{exactly} a weighting estimator, $\that = \DiM + \sum_i w^{\mathrm{net}}_i y_i$, and that its error equals the imbalance of these weights on the true outcome surfaces plus a noise term. Across \nDGPhone{} synthetic data-generating processes, IHDP, probes, LEACE erasure and coupled propensity swaps, we find three things. (i)~CausalPFN removes nearly all confounding bias in low-dimensional problems, but only \kHardPFN{} of it under dense, weak, nonlinear confounding, against \kHardGP{} for a Gaussian-process S-learner given the same preprocessing. The gap persists when overlap is bounded. (ii)~The implied weights remove \linRemoved{} of the linear but only \nonlinRemoved{} of the nonlinear confounding. \nonlinShareLeft{} of the remaining bias is nonlinear, and its size predicts the shortfall ($r={}$\corrKappaNonlin). (iii)~Propensity information is computed in the context-row representations from the first layer and is partly used: erasing it moves the estimate by \eraseOne{}--\eraseAll{} of the correction. Yet when only the propensity changes, CausalPFN responds like the GP outcome model, not like inverse-propensity weighting. CausalPFN thus behaves as a regularised outcome smoother whose balance is essentially linear. This locates the failure that recent debiasing methods target.
 \end{abstract}
 
 \section{Introduction}
@@ -40,7 +40,7 @@ Prior-data fitted networks (PFNs) amortise Bayesian inference over a synthetic p
 \item \textbf{What is balanced?} The weights balance the linear span of $X$ almost as well as oracle inverse-propensity weights do, and its nonlinear complement far worse. The nonlinear residual predicts the shortfall (\cref{sec:h2}). On IHDP, confounding is almost entirely linear, so this failure mode never shows (\cref{sec:ihdp}).
 \item \textbf{Where is propensity?} Probes with shuffled-treatment and random-network controls, LEACE erasure \citep{belrose2023leace}, attention analysis and coupled propensity swaps show that propensity is computed and partly used, but that CausalPFN responds to propensity changes like an outcome model (\cref{sec:h3}).
 \end{enumerate}
-Code, all result files and the scripts that regenerate every number and figure are available at \url{https://github.com/PRANAVKALLA230106/causalpfn-weighting}.
+Code and all result files will be released.
 
 \section{Setup}\label{sec:setup}
 \paragraph{Estimand and the share of bias removed.}
