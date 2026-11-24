@@ -1,7 +1,7 @@
 # What Estimator Does CausalPFN Learn?
 ### An Exact Weighting View of a Causal Foundation Model
 
-**Pranav Kalla** · paper: [`paper/paper.pdf`](paper/paper.pdf)
+**Pranav Kalla** · paper: [`paper/paper.pdf`](paper/paper.pdf) · code: <https://github.com/PRANAVKALLA230106/causalpfn-weighting>
 
 CausalPFN estimates treatment effects in one forward pass. This repository shows that its per-arm outcome standardisation makes its ATE estimate **exactly** a weighting estimator,
 
